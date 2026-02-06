@@ -14,6 +14,10 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
+    <script>
+      // Shim to ensure process.env exists for browser-based modules
+      window.process = window.process || { env: {} };
+    </script>
 <script type="importmap">
 {
   "imports": {

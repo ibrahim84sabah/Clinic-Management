@@ -2,20 +2,24 @@
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * Analyzes clinic data using Gemini AI.
- * The API key is obtained exclusively from process.env.API_KEY.
+ * Analyzes clinic data using Gemini 3 Pro.
+ * Adheres to strict SDK guidelines: Use process.env.API_KEY directly.
  */
 export const analyzeClinicData = async (prompt: string, dataContext: any) => {
-  // Accessing API_KEY directly from process.env as per GenAI guidelines
+  // Safely check for API_KEY in process.env
   // @ts-ignore
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
+  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
   
   if (!apiKey) {
-    throw new Error("DentaGlow: Gemini API_KEY is missing in the environment.");
+    throw new Error(
+      "DentaGlow: API_KEY is missing. " +
+      "Please ensure 'API_KEY' is set in your Vercel Environment Variables."
+    );
   }
 
-  // Initialize inside the function to ensure the latest environment variables are used.
-  const ai = new GoogleGenAI({ apiKey });
+  // Strictly follow: new GoogleGenAI({ apiKey: process.env.API_KEY })
+  // @ts-ignore
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
     أنت مستشار استراتيجي أول لعيادة طبية وتجميلية.
@@ -41,7 +45,6 @@ export const analyzeClinicData = async (prompt: string, dataContext: any) => {
       },
     });
 
-    // Access .text property directly (it is a getter, not a method)
     return response.text;
   } catch (error) {
     console.error("Gemini API Error:", error);
