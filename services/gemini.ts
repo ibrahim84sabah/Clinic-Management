@@ -3,25 +3,34 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * تحليل بيانات العيادة باستخدام Gemini 3 Pro.
- * يلتزم بالقاعدة: new GoogleGenAI({ apiKey: process.env.API_KEY })
+ * يلتزم بالقاعدة: استخدام process.env.API_KEY مباشرة.
  */
 export const analyzeClinicData = async (prompt: string, dataContext: any) => {
-  // Fix: Initialize GoogleGenAI strictly using process.env.API_KEY as per guidelines.
+  // @ts-ignore
+  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+
+  if (!apiKey) {
+    throw new Error("DentaGlow AI: مفتاح API_KEY مفقود في البيئة.");
+  }
+
+  // استخدام التهيئة المطلوبة تماماً
+  // @ts-ignore
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
-    أنت مستشار استراتيجي أول لعيادة طبية وتجميلية (دينتا جلو).
-    لديك إمكانية الوصول إلى بيانات المرضى ومستويات المخزون والتقارير المالية.
-    مهمتك هي تقديم ذكاء أعمال عالي المستوى، واكتشاف الاتجاهات، واقتراح التحسينات.
+    أنت المستشار الاستراتيجي الرئيسي لعيادة (دينتا جلو).
+    لديك إمكانية الوصول المباشر إلى قاعدة بيانات Supabase.
+    مهمتك: تقديم تحليل بيانات عميق، كشف نقاط الخلل المالي، وتحسين إدارة المخزون.
     
-    التعليمات:
-    - يجب أن تكون جميع الردود باللغة العربية الفصحى والمهنية.
-    - استخدم Markdown للعناوين والنقاط العريضة والنص الغامق.
-    - ركز على منطق الربح الصافي (الإيرادات - المستهلكات - العمولات).
+    القواعد:
+    1. الرد باللغة العربية المهنية فقط.
+    2. استخدم Markdown للجداول والعناوين.
+    3. ركز على "صافي الربح الحقيقي" (الإيرادات - التكاليف - العمولات).
+    4. إذا كان هناك نقص في المخزون، قدم خطة شراء فورية.
   `;
 
   const contextStr = JSON.stringify(dataContext);
-  const fullPrompt = `سياق البيانات الحالي: ${contextStr}\n\nسؤال المستخدم: ${prompt}`;
+  const fullPrompt = `سياق البيانات الفعلي في العيادة:\n${contextStr}\n\nطلب المدير:\n${prompt}`;
 
   try {
     const response = await ai.models.generateContent({
@@ -33,10 +42,10 @@ export const analyzeClinicData = async (prompt: string, dataContext: any) => {
       },
     });
 
-    // Fix: Access response.text directly (property, not a method).
+    // الرد هو خاصية .text وليس دالة .text()
     return response.text;
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini Critical Error:", error);
     throw error;
   }
 };

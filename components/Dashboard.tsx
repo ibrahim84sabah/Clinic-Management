@@ -10,106 +10,136 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ onNavigate, userRole }) => {
   const [stats, setStats] = useState([
-    { label: 'إجمالي المرضى', value: '...', trend: 'جاري التحميل', color: 'indigo', target: 'patients' },
-    { label: 'مرضى جدد (اليوم)', value: '...', trend: 'تحديث فوري', color: 'blue', target: 'patients' },
-    { label: 'تنبيهات المخزون', value: '...', trend: 'عناصر حرجة', color: 'orange', target: 'inventory' },
-    { label: 'جلسات اليوم', value: '...', trend: 'من السجل', color: 'emerald', target: 'patients' },
+    { label: 'إجمالي المرضى', value: '0', trend: '...', color: 'indigo', target: 'patients', icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z' },
+    { label: 'نواقص المخزون', value: '0', trend: '...', color: 'rose', target: 'inventory', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+    { label: 'صافي ربح اليوم', value: '$0', trend: '...', color: 'emerald', target: 'accounting', icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { label: 'جلسات اليوم', value: '0', trend: '...', color: 'blue', target: 'patients', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
   ]);
 
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
-    const fetchStats = async () => {
-      // Get total patients
-      const { count: patientCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
-      
-      // Get today's new patients
-      const today = new Date().toISOString().split('T')[0];
-      const { count: newToday } = await supabase.from('patients').select('*', { count: 'exact', head: true }).gte('created_at', today);
-      
-      // Get low stock items
-      const { count: lowStock } = await supabase.from('materials').select('*', { count: 'exact', head: true }).filter('stock_quantity', 'lte', 'order_limit');
+    const fetchLiveStats = async () => {
+      setIsLoading(true);
+      try {
+        const today = new Date().toISOString().split('T')[0];
 
-      // Get today's invoices (sessions)
-      const { count: sessionsToday } = await supabase.from('invoices').select('*', { count: 'exact', head: true }).gte('created_at', today);
+        // 1. تعداد المرضى
+        const { count: patientCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
+        
+        // 2. تعداد نواقص المخزون (أقل من حد الطلب)
+        const { count: lowStockCount } = await supabase.from('materials')
+          .select('*', { count: 'exact', head: true })
+          .filter('stock_quantity', 'lte', 'order_limit')
+          .eq('type', 'CONSUMABLE');
 
-      setStats([
-        { label: 'إجمالي المرضى', value: (patientCount || 0).toString(), trend: 'منذ البداية', color: 'indigo', target: 'patients' },
-        { label: 'مرضى جدد (اليوم)', value: (newToday || 0).toString(), trend: 'تحديث اليوم', color: 'blue', target: 'patients' },
-        { label: 'تنبيهات المخزون', value: (lowStock || 0).toString(), trend: 'تحتاج طلب', color: 'orange', target: 'inventory' },
-        { label: 'جلسات اليوم', value: (sessionsToday || 0).toString(), trend: 'مكتملة/قائمة', color: 'emerald', target: 'patients' },
-      ]);
+        // 3. أرباح اليوم من الـ VIEW
+        const { data: profitData } = await supabase.from('session_profit_analysis')
+          .select('net_profit')
+          .gte('created_at', today);
+        
+        const todayNet = profitData?.reduce((sum, item) => sum + Number(item.net_profit), 0) || 0;
+
+        // 4. جلسات اليوم
+        const { count: sessionsToday } = await supabase.from('invoices')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', today);
+
+        setStats([
+          { ...stats[0], value: (patientCount || 0).toString(), trend: 'تحديث سحابي' },
+          { ...stats[1], value: (lowStockCount || 0).toString(), trend: 'مستلزمات حرجة' },
+          { ...stats[2], value: `$${todayNet.toLocaleString()}`, trend: 'أرباح صافية' },
+          { ...stats[3], value: (sessionsToday || 0).toString(), trend: 'مواعيد مكتملة' },
+        ]);
+      } catch (err) {
+        console.error("Dashboard Fetch Error:", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    fetchStats();
+    fetchLiveStats();
   }, []);
 
-  const visibleStats = stats.filter(stat => {
-    if (stat.target === 'inventory' && userRole === UserRole.RECEPTIONIST) return false;
-    return true;
-  });
-
   return (
-    <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500 text-right">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-slate-800">مرحباً بك مجدداً في عيادة دينتا جلو</h1>
-          <p className="text-sm lg:text-base text-slate-500">نظرة عامة على البيانات الحية المسترجعة من السحابة.</p>
+    <div className="space-y-10 animate-in fade-in duration-700 text-right">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="space-y-1">
+          <h1 className="text-3xl lg:text-4xl font-black text-slate-800 tracking-tight">نظرة عامة على العيادة</h1>
+          <p className="text-slate-500 font-medium italic">بيانات حية مباشرة من محرك Supabase.</p>
         </div>
-        <div className="bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl inline-flex items-center gap-2 shadow-sm shadow-indigo-50">
-           <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></span>
-           <span className="text-xs font-bold text-indigo-700">اتصال Supabase نشط</span>
+        <div className="bg-emerald-50 border border-emerald-100 px-5 py-2.5 rounded-2xl flex items-center gap-3 shadow-sm">
+           <span className="relative flex h-3 w-3">
+             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+             <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+           </span>
+           <span className="text-xs font-black text-emerald-800 uppercase tracking-widest">تزامن السحاب نشط</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-        {visibleStats.map((stat, i) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+        {stats.map((stat, i) => (
           <button 
             key={i} 
             onClick={() => onNavigate(stat.target)}
-            className="group text-right bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all transform hover:-translate-y-1"
+            className="group relative bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/20 hover:border-indigo-500 hover:shadow-indigo-100 transition-all transform hover:-translate-y-1 text-right"
           >
-            <div className="flex justify-between items-start mb-2">
-               <p className="text-sm font-medium text-slate-500 group-hover:text-indigo-600 transition-colors">{stat.label}</p>
-               <svg className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-               </svg>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-colors ${
+              stat.color === 'indigo' ? 'bg-indigo-50 text-indigo-600' :
+              stat.color === 'rose' ? 'bg-rose-50 text-rose-600' :
+              stat.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'
+            }`}>
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={stat.icon} /></svg>
             </div>
-            <div className="flex items-end gap-2">
-              <h3 className="text-xl lg:text-2xl font-bold text-slate-800">{stat.value}</h3>
-              <span className={`text-[10px] mb-1 font-medium px-2 py-0.5 rounded-full ${
-                stat.color === 'emerald' ? 'bg-emerald-50 text-emerald-600' :
-                stat.color === 'orange' ? 'bg-orange-50 text-orange-600' :
-                'bg-slate-50 text-slate-600'
-              }`}>
-                {stat.trend}
-              </span>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
+            <div className="flex items-baseline gap-2">
+              <h3 className="text-2xl lg:text-3xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
+                {isLoading ? '...' : stat.value}
+              </h3>
+              <span className="text-[10px] font-black text-slate-400">{stat.trend}</span>
+            </div>
+            
+            <div className="absolute top-6 left-6 opacity-0 group-hover:opacity-100 transition-opacity">
+               <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             </div>
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-        <div className="lg:col-span-2 bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="font-bold text-slate-800">أحدث الإجراءات الطبية</h3>
-            <button onClick={() => onNavigate('patients')} className="text-xs font-bold text-indigo-600 hover:underline">سجل المرضى</button>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-2xl shadow-slate-200/20">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xl font-black text-slate-800">تحليل الأداء الأخير</h3>
+            <div className="flex gap-2">
+              <span className="px-3 py-1 bg-slate-50 text-[10px] font-bold text-slate-500 rounded-lg">آخر 24 ساعة</span>
+            </div>
           </div>
-          <div className="py-10 text-center text-slate-400 italic text-sm">
-            يتم جلب البيانات من جدول الفواتير والجلسات...
+          <div className="h-64 flex flex-col items-center justify-center border-2 border-dashed border-slate-50 rounded-[2rem] bg-slate-50/30">
+             <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-slate-200 mb-4 shadow-sm">
+                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+             </div>
+             <p className="text-slate-400 text-sm font-medium">سيتم عرض الرسم البياني للأرباح هنا عند توفر بيانات كافية</p>
           </div>
         </div>
 
-        <div className="bg-white p-5 lg:p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <h3 className="font-bold text-slate-800 mb-4">تنبيهات ذكية</h3>
-          <div className="space-y-4">
-            <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-3">
-              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-              <p className="text-xs font-medium text-amber-800">تحقق من نواقص المخزون في تبويب المستلزمات.</p>
+        <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden flex flex-col justify-between">
+          <div className="relative z-10">
+            <div className="bg-white/10 w-12 h-12 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-md">
+               <svg className="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             </div>
-            <div className="p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center gap-3">
-              <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-              <p className="text-xs font-medium text-indigo-800">تأكد من مزامنة بيانات اليوم مع ن8ن للأتمتة.</p>
-            </div>
+            <h3 className="text-2xl font-black mb-2">مساعد Gemini</h3>
+            <p className="text-indigo-200 text-sm leading-relaxed mb-8">يقوم الذكاء الاصطناعي الآن بمراقبة مخزونك وأرباحك لتقديم نصائح ذكية.</p>
           </div>
+          
+          <button 
+            onClick={() => onNavigate('ai')}
+            className="relative z-10 w-full bg-white text-indigo-900 py-4 rounded-2xl font-black text-sm hover:bg-indigo-50 transition-colors shadow-xl"
+          >
+            تحدث مع الذكاء الاصطناعي
+          </button>
+
+          <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl"></div>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl"></div>
         </div>
       </div>
     </div>

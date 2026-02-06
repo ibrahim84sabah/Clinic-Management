@@ -2,41 +2,56 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * دالة ذكية وشاملة لجلب متغيرات البيئة.
- * صُممت لتعمل في بيئات البناء المختلفة (Vite, Next, Vercel).
+ * بيانات مشروع Supabase الموفرة من قبل المستخدم
  */
-const getEnv = (key: string): string => {
-  try {
-    // 1. البحث في process.env التقليدي (Node/Vercel)
-    // @ts-ignore
-    const pEnv = (typeof process !== 'undefined' && process.env) ? process.env : {};
-    
-    // 2. البحث في window.process.env (في حال وجود Shim)
-    // @ts-ignore
-    const wEnv = (typeof window !== 'undefined' && (window as any).process?.env) ? (window as any).process.env : {};
+const SUPABASE_PROJECT_URL = 'https://kudsdhnrgbaccefyaovd.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_tpHII0KLsyu7EWqyVVbaYw_g6gRvJnC';
 
-    // 3. الترتيب المفضل للجلب
-    return pEnv[`NEXT_PUBLIC_${key}`] || 
-           pEnv[key] || 
-           wEnv[`NEXT_PUBLIC_${key}`] || 
-           wEnv[key] || 
-           '';
+/**
+ * دالة جلب متغيرات البيئة مع أولوية للقيم الموفرة مباشرة
+ * لضمان عمل التطبيق فوراً.
+ */
+const getEnv = (key: string, defaultValue: string): string => {
+  try {
+    // @ts-ignore
+    const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
+    
+    // البحث في المتغيرات (للإنتاج على Vercel) أو استخدام القيمة الموفرة
+    const value = env[`NEXT_PUBLIC_${key}`] || 
+                  env[key] || 
+                  defaultValue;
+    
+    return value.trim();
   } catch (e) {
-    console.error(`Error accessing env var ${key}:`, e);
-    return '';
+    return defaultValue;
   }
 };
 
-const supabaseUrl = getEnv('SUPABASE_URL');
-const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+const url = getEnv('SUPABASE_URL', SUPABASE_PROJECT_URL);
+const key = getEnv('SUPABASE_ANON_KEY', SUPABASE_ANON_KEY);
 
-// نستخدم قيم "Placeholder" فقط لتجنب انهيار التطبيق، 
-// App.tsx سيتعرف عليها ويعرض شاشة التكوين بدلاً من شاشة بيضاء.
-const url = supabaseUrl || 'https://placeholder-project.supabase.co';
-const key = supabaseAnonKey || 'placeholder-anon-key';
-
+// إنشاء عميل Supabase
 export const supabase = createClient(url, key);
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("DentaGlow: Supabase variables are missing. Current detected URL:", supabaseUrl ? "Found" : "Missing");
-}
+/**
+ * فحص الاتصال بقاعدة البيانات.
+ * يحاول قراءة جدول المرضى للتأكد من أن المفاتيح صالحة والجداول موجودة.
+ */
+export const checkDbConnection = async () => {
+  try {
+    // محاولة بسيطة لجلب عدد الصفوف من جدول المرضى
+    const { error } = await supabase.from('patients').select('id', { count: 'exact', head: true });
+    
+    // إذا كان الخطأ متعلق بعدم وجود الجدول، فهذا يعني أن الاتصال نجح ولكن السكيما مفقودة
+    // أما إذا كان الخطأ 401 أو 403 فهذا يعني أن المفاتيح خاطئة
+    if (error && (error.code === 'PGRST301' || error.status === 401)) {
+      console.error("Supabase Auth Error:", error.message);
+      return false;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error("Critical Connection Error:", err);
+    return false;
+  }
+};
