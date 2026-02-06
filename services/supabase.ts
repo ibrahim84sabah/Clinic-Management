@@ -2,26 +2,28 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * بيانات مشروع Supabase الموفرة من قبل المستخدم
+ * Default Supabase Credentials.
+ * These act as fallbacks if environment variables are not set in the deployment dashboard.
  */
 const SUPABASE_PROJECT_URL = 'https://kudsdhnrgbaccefyaovd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_tpHII0KLsyu7EWqyVVbaYw_g6gRvJnC';
 
 /**
- * دالة جلب متغيرات البيئة مع أولوية للقيم الموفرة مباشرة
- * لضمان عمل التطبيق فوراً.
+ * Utility to fetch environment variables from various possible sources.
  */
 const getEnv = (key: string, defaultValue: string): string => {
   try {
+    // Access shimmed or injected process.env
     // @ts-ignore
-    const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
+    const env = (window.process && window.process.env) ? window.process.env : {};
     
-    // البحث في المتغيرات (للإنتاج على Vercel) أو استخدام القيمة الموفرة
+    // Priorities: NEXT_PUBLIC_ (Vercel standard), VITE_ (Vite standard), raw key, then default
     const value = env[`NEXT_PUBLIC_${key}`] || 
+                  env[`VITE_${key}`] || 
                   env[key] || 
                   defaultValue;
     
-    return value.trim();
+    return value ? value.trim() : defaultValue;
   } catch (e) {
     return defaultValue;
   }
@@ -30,22 +32,18 @@ const getEnv = (key: string, defaultValue: string): string => {
 const url = getEnv('SUPABASE_URL', SUPABASE_PROJECT_URL);
 const key = getEnv('SUPABASE_ANON_KEY', SUPABASE_ANON_KEY);
 
-// إنشاء عميل Supabase
+// Create the Supabase client
 export const supabase = createClient(url, key);
 
 /**
- * فحص الاتصال بقاعدة البيانات.
- * يحاول قراءة جدول المرضى للتأكد من أن المفاتيح صالحة والجداول موجودة.
+ * Simple connectivity check to verify that the Supabase keys are valid and the database is reachable.
  */
 export const checkDbConnection = async () => {
   try {
-    // محاولة بسيطة لجلب عدد الصفوف من جدول المرضى
-    const { error } = await supabase.from('patients').select('id', { count: 'exact', head: true });
+    const { error } = await supabase.from('patients').select('id', { count: 'exact', head: true }).limit(1);
     
-    // إذا كان الخطأ متعلق بعدم وجود الجدول، فهذا يعني أن الاتصال نجح ولكن السكيما مفقودة
-    // أما إذا كان الخطأ 401 أو 403 فهذا يعني أن المفاتيح خاطئة
-    if (error && (error.code === 'PGRST301' || error.status === 401)) {
-      console.error("Supabase Auth Error:", error.message);
+    if (error) {
+      console.error("Supabase Connection Refused:", error.message);
       return false;
     }
     
