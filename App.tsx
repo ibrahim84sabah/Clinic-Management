@@ -19,17 +19,15 @@ const App: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isConfigMissing, setIsConfigMissing] = useState(false);
+  // Fix: Added missing notifications state and derived unreadCount variable
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const notificationRef = useRef<HTMLDivElement>(null);
-
-  const [notifications] = useState<Notification[]>([
-    { id: '1', title: 'تنبيه مخزون', message: 'وصل رصيد "إبر 1سم" إلى الحد الأدنى (15 قطعة)', time: 'منذ 5 دقائق', type: 'ALERT', read: false },
-    { id: '2', title: 'موعد قادم', message: 'أليس فريمان لديها موعد فيلر بعد 30 دقيقة', time: 'منذ ساعة', type: 'INFO', read: false },
-  ]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   useEffect(() => {
     const checkConfigAndAuth = async () => {
+      // التحقق من المتغيرات
       // @ts-ignore
       const url = supabase.supabaseUrl || '';
       // @ts-ignore
@@ -38,6 +36,7 @@ const App: React.FC = () => {
       const hasConfig = url && key && !url.includes('placeholder') && !key.includes('placeholder');
       
       if (!hasConfig) {
+        console.error("Configuration Check Failed:", { url, key });
         setIsConfigMissing(true);
         setIsAuthLoading(false);
         return;
@@ -58,7 +57,7 @@ const App: React.FC = () => {
           });
         }
       } catch (err) {
-        console.warn("Auth check failed:", err);
+        console.warn("Auth check failed (likely needs login):", err);
       } finally {
         setIsAuthLoading(false);
       }
@@ -84,33 +83,48 @@ const App: React.FC = () => {
 
   if (isConfigMissing) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 text-right" dir="rtl">
-        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl border-t-8 border-indigo-600 animate-in fade-in zoom-in duration-500">
-          <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-6">
-             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6 text-right" dir="rtl">
+        <div className="max-w-xl w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-slate-200 animate-in fade-in zoom-in duration-700">
+          <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center text-white mb-8 shadow-xl shadow-indigo-100">
+             <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-4">تكوين السحاب مطلوب</h1>
-          <p className="text-slate-600 mb-6 leading-relaxed text-sm">
-            نظام المتصفح لا يستطيع قراءة المتغيرات. في Vercel، يجب إضافة البادئة <b>NEXT_PUBLIC_</b> لكي تظهر للمتصفح:
+          
+          <h1 className="text-3xl font-black text-slate-800 mb-4">تكوين السحاب مطلوب 🚀</h1>
+          <p className="text-slate-500 mb-8 leading-relaxed text-lg">
+            أنت على بعد خطوة واحدة من تشغيل عيادتك. المتصفح لا يستطيع قراءة متغيرات Vercel إلا إذا كانت تبدأ بـ <span className="text-indigo-600 font-bold">NEXT_PUBLIC_</span>.
           </p>
-          <ul className="space-y-3 mb-8">
-            <li className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">الرابط في Vercel</span>
-              <code className="text-indigo-600 font-mono text-xs break-all">NEXT_PUBLIC_SUPABASE_URL</code>
-            </li>
-            <li className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">المفتاح في Vercel</span>
-              <code className="text-indigo-600 font-mono text-xs break-all">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
-            </li>
-            <li className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">مفتاح AI في Vercel</span>
-              <code className="text-indigo-600 font-mono text-xs break-all">NEXT_PUBLIC_API_KEY</code>
-            </li>
-          </ul>
-          <div className="bg-amber-50 p-4 rounded-xl text-amber-800 text-xs mb-6 leading-loose">
-            💡 <b>ملاحظة:</b> بعد تغيير الأسماء في Vercel، يجب عمل <b>Redeploy</b> ليتم تحديث القيم في النسخة المنشورة.
+
+          <div className="space-y-4 mb-10">
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <code className="text-indigo-600 font-mono text-sm">NEXT_PUBLIC_SUPABASE_URL</code>
+              <span className="text-xs font-bold text-slate-400 uppercase">رابط قاعدة البيانات</span>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <code className="text-indigo-600 font-mono text-sm">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
+              <span className="text-xs font-bold text-slate-400 uppercase">مفتاح الوصول</span>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+              <code className="text-indigo-600 font-mono text-sm">NEXT_PUBLIC_API_KEY</code>
+              <span className="text-xs font-bold text-slate-400 uppercase">مفتاح الذكاء الاصطناعي</span>
+            </div>
           </div>
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center border-t pt-4">بمجرد الإضافة وإعادة النشر، سيفتح التطبيق تلقائياً.</div>
+
+          <div className="bg-amber-50 p-6 rounded-2xl border border-amber-100 mb-8">
+            <h4 className="text-amber-800 font-bold mb-2 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              تنبيه هام جداً:
+            </h4>
+            <p className="text-amber-700 text-sm leading-relaxed">
+              بعد إضافة أو تعديل الأسماء في Vercel، <b>يجب عليك عمل Redeploy</b> للمشروع. المتغيرات لا تعمل تلقائياً في النسخ القديمة.
+            </p>
+          </div>
+
+          <button 
+            onClick={() => window.location.reload()}
+            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-95"
+          >
+            لقد أضفتها، أعد الفحص الآن
+          </button>
         </div>
       </div>
     );
@@ -120,7 +134,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-bold animate-pulse">جاري التحقق من الهوية...</p>
+        <p className="text-slate-500 font-bold animate-pulse">جاري التحقق من اتصال السحاب...</p>
       </div>
     );
   }

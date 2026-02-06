@@ -2,24 +2,27 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * دالة ذكية لجلب متغيرات البيئة في المتصفح.
- * تبحث عن المتغير بالاسم الصريح، أو ببادئة NEXT_PUBLIC_ (لـ Vercel/Next)
- * أو ببادئة VITE_ (لـ Vite).
+ * دالة ذكية وشاملة لجلب متغيرات البيئة.
+ * صُممت لتعمل في بيئات البناء المختلفة (Vite, Next, Vercel).
  */
 const getEnv = (key: string): string => {
   try {
-    // محاولة الجلب من process.env (المعتاد في Vercel)
+    // 1. البحث في process.env التقليدي (Node/Vercel)
     // @ts-ignore
-    const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
+    const pEnv = (typeof process !== 'undefined' && process.env) ? process.env : {};
     
-    // الترتيب: الاسم الصريح -> بادئة Next -> بادئة Vite
-    return env[key] || 
-           env[`NEXT_PUBLIC_${key}`] || 
-           env[`VITE_${key}`] || 
-           // @ts-ignore
-           (typeof window !== 'undefined' && window.process?.env?.[key]) ||
+    // 2. البحث في window.process.env (في حال وجود Shim)
+    // @ts-ignore
+    const wEnv = (typeof window !== 'undefined' && (window as any).process?.env) ? (window as any).process.env : {};
+
+    // 3. الترتيب المفضل للجلب
+    return pEnv[`NEXT_PUBLIC_${key}`] || 
+           pEnv[key] || 
+           wEnv[`NEXT_PUBLIC_${key}`] || 
+           wEnv[key] || 
            '';
   } catch (e) {
+    console.error(`Error accessing env var ${key}:`, e);
     return '';
   }
 };
@@ -27,13 +30,13 @@ const getEnv = (key: string): string => {
 const supabaseUrl = getEnv('SUPABASE_URL');
 const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
 
-// استخدام قيم افتراضية مؤقتة لمنع انهيار التطبيق، مع السماح لـ App.tsx بعرض شاشة التنبيه
+// نستخدم قيم "Placeholder" فقط لتجنب انهيار التطبيق، 
+// App.tsx سيتعرف عليها ويعرض شاشة التكوين بدلاً من شاشة بيضاء.
 const url = supabaseUrl || 'https://placeholder-project.supabase.co';
 const key = supabaseAnonKey || 'placeholder-anon-key';
 
 export const supabase = createClient(url, key);
 
-// تسجيل الحالة في وحدة التحكم للمساعدة في التصحيح
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("DentaGlow Status: Supabase configuration missing from environment.");
+  console.warn("DentaGlow: Supabase variables are missing. Current detected URL:", supabaseUrl ? "Found" : "Missing");
 }

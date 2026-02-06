@@ -2,30 +2,15 @@
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * جلب مفتاح API الخاص بـ Gemini.
- * يبحث عن API_KEY أو NEXT_PUBLIC_API_KEY.
+ * تحليل بيانات العيادة باستخدام Gemini 3 Pro.
+ * يلتزم بالقاعدة: new GoogleGenAI({ apiKey: process.env.API_KEY })
  */
-const getApiKey = (): string => {
-  // @ts-ignore
-  const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
-  return env.API_KEY || env.NEXT_PUBLIC_API_KEY || env.VITE_API_KEY || '';
-};
-
 export const analyzeClinicData = async (prompt: string, dataContext: any) => {
-  const apiKey = getApiKey();
-  
-  if (!apiKey) {
-    throw new Error(
-      "DentaGlow Error: Gemini API_KEY is missing. " +
-      "Please add NEXT_PUBLIC_API_KEY to Vercel."
-    );
-  }
-
-  // إنشاء المثيل مباشرة باستخدام المفتاح المكتشف
-  const ai = new GoogleGenAI({ apiKey });
+  // Fix: Initialize GoogleGenAI strictly using process.env.API_KEY as per guidelines.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
-    أنت مستشار استراتيجي أول لعيادة طبية وتجميلية.
+    أنت مستشار استراتيجي أول لعيادة طبية وتجميلية (دينتا جلو).
     لديك إمكانية الوصول إلى بيانات المرضى ومستويات المخزون والتقارير المالية.
     مهمتك هي تقديم ذكاء أعمال عالي المستوى، واكتشاف الاتجاهات، واقتراح التحسينات.
     
@@ -48,6 +33,7 @@ export const analyzeClinicData = async (prompt: string, dataContext: any) => {
       },
     });
 
+    // Fix: Access response.text directly (property, not a method).
     return response.text;
   } catch (error) {
     console.error("Gemini API Error:", error);
