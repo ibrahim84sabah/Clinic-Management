@@ -30,7 +30,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkConfigAndAuth = async () => {
-      // Check if variables are valid or still placeholders
       // @ts-ignore
       const url = supabase.supabaseUrl || '';
       // @ts-ignore
@@ -59,7 +58,7 @@ const App: React.FC = () => {
           });
         }
       } catch (err) {
-        console.warn("Auth check failed (might be first run):", err);
+        console.warn("Auth check failed:", err);
       } finally {
         setIsAuthLoading(false);
       }
@@ -90,25 +89,28 @@ const App: React.FC = () => {
           <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-6">
              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 mb-4">تكوين السحابة مطلوب</h1>
+          <h1 className="text-2xl font-bold text-slate-800 mb-4">تكوين السحاب مطلوب</h1>
           <p className="text-slate-600 mb-6 leading-relaxed text-sm">
-            تم رصد نقص في إعدادات الاتصال بـ Supabase. يرجى التأكد من إضافة المتغيرات التالية في Vercel:
+            نظام المتصفح لا يستطيع قراءة المتغيرات. في Vercel، يجب إضافة البادئة <b>NEXT_PUBLIC_</b> لكي تظهر للمتصفح:
           </p>
           <ul className="space-y-3 mb-8">
             <li className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">الرابط (URL)</span>
-              <code className="text-indigo-600 font-mono text-xs break-all">SUPABASE_URL</code>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">الرابط في Vercel</span>
+              <code className="text-indigo-600 font-mono text-xs break-all">NEXT_PUBLIC_SUPABASE_URL</code>
             </li>
             <li className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">المفتاح (Anon Key)</span>
-              <code className="text-indigo-600 font-mono text-xs break-all">SUPABASE_ANON_KEY</code>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">المفتاح في Vercel</span>
+              <code className="text-indigo-600 font-mono text-xs break-all">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>
             </li>
             <li className="flex flex-col gap-1 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">مفتاح الذكاء الاصطناعي</span>
-              <code className="text-indigo-600 font-mono text-xs break-all">API_KEY</code>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">مفتاح AI في Vercel</span>
+              <code className="text-indigo-600 font-mono text-xs break-all">NEXT_PUBLIC_API_KEY</code>
             </li>
           </ul>
-          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center border-t pt-4">بمجرد إضافة المتغيرات، قم بإعادة نشر التطبيق (Redeploy).</div>
+          <div className="bg-amber-50 p-4 rounded-xl text-amber-800 text-xs mb-6 leading-loose">
+            💡 <b>ملاحظة:</b> بعد تغيير الأسماء في Vercel، يجب عمل <b>Redeploy</b> ليتم تحديث القيم في النسخة المنشورة.
+          </div>
+          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center border-t pt-4">بمجرد الإضافة وإعادة النشر، سيفتح التطبيق تلقائياً.</div>
         </div>
       </div>
     );

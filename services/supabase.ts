@@ -2,47 +2,38 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Robust Environment Variable Retrieval
- * Specifically handles Vercel injected variables in a browser environment.
+ * دالة ذكية لجلب متغيرات البيئة في المتصفح.
+ * تبحث عن المتغير بالاسم الصريح، أو ببادئة NEXT_PUBLIC_ (لـ Vercel/Next)
+ * أو ببادئة VITE_ (لـ Vite).
  */
 const getEnv = (key: string): string => {
   try {
-    // Check standard process.env (Vercel/Node style)
+    // محاولة الجلب من process.env (المعتاد في Vercel)
     // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      // @ts-ignore
-      return process.env[key];
-    }
+    const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
     
-    // Check window.process.env (Common shim style)
-    // @ts-ignore
-    if (typeof window !== 'undefined' && (window as any).process?.env?.[key]) {
-      // @ts-ignore
-      return (window as any).process.env[key];
-    }
-
-    // Check for NEXT_PUBLIC or VITE prefixes just in case the bundler renamed them
-    // @ts-ignore
-    const pEnv = (typeof process !== 'undefined' && process.env) ? process.env : {};
-    if (pEnv[`NEXT_PUBLIC_${key}`]) return pEnv[`NEXT_PUBLIC_${key}`];
-    if (pEnv[`VITE_${key}`]) return pEnv[`VITE_${key}`];
-
+    // الترتيب: الاسم الصريح -> بادئة Next -> بادئة Vite
+    return env[key] || 
+           env[`NEXT_PUBLIC_${key}`] || 
+           env[`VITE_${key}`] || 
+           // @ts-ignore
+           (typeof window !== 'undefined' && window.process?.env?.[key]) ||
+           '';
   } catch (e) {
-    console.error(`Error reading env var ${key}:`, e);
+    return '';
   }
-  return '';
 };
 
 const supabaseUrl = getEnv('SUPABASE_URL');
 const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
 
-// We use these values if available, otherwise fall back to placeholders 
-// so the UI can show the configuration warning instead of crashing.
+// استخدام قيم افتراضية مؤقتة لمنع انهيار التطبيق، مع السماح لـ App.tsx بعرض شاشة التنبيه
 const url = supabaseUrl || 'https://placeholder-project.supabase.co';
 const key = supabaseAnonKey || 'placeholder-anon-key';
 
 export const supabase = createClient(url, key);
 
+// تسجيل الحالة في وحدة التحكم للمساعدة في التصحيح
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn("DentaGlow: Supabase variables (SUPABASE_URL, SUPABASE_ANON_KEY) are currently missing from the environment.");
+  console.warn("DentaGlow Status: Supabase configuration missing from environment.");
 }
