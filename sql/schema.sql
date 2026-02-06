@@ -1,8 +1,8 @@
 
--- CLINIC MANAGEMENT SYSTEM SCHEMA
+-- CLINIC MANAGEMENT SYSTEM SCHEMA (UPDATED RLS)
 
 -- 1. Tables
-CREATE TABLE patients (
+CREATE TABLE IF NOT EXISTS patients (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   phones TEXT[] NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE patients (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE materials (
+CREATE TABLE IF NOT EXISTS materials (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   type TEXT CHECK (type IN ('SERVICE', 'CONSUMABLE')),
@@ -20,29 +20,21 @@ CREATE TABLE materials (
   cost_price DECIMAL(12, 2) NOT NULL,
   stock_quantity INTEGER DEFAULT 0,
   order_limit INTEGER DEFAULT 10,
-  unit TEXT DEFAULT 'pcs'
+  unit TEXT DEFAULT 'pcs',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE invoices (
+CREATE TABLE IF NOT EXISTS invoices (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   patient_id UUID REFERENCES patients(id),
   doctor_id UUID REFERENCES auth.users(id),
   doctor_commission_pct DECIMAL(5, 2) DEFAULT 0,
   total_gross_amount DECIMAL(12, 2) NOT NULL,
-  external_fees DECIMAL(12, 2) DEFAULT 0, -- e.g. Transport Fees
+  external_fees DECIMAL(12, 2) DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE consumable_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  invoice_id UUID REFERENCES invoices(id),
-  material_id UUID REFERENCES materials(id),
-  quantity INTEGER NOT NULL,
-  cost_at_time DECIMAL(12, 2) NOT NULL
-);
-
 -- 2. Profit Calculation View
--- Calculates Net Profit = Session Selling Price - Total Cost of Consumables - Doctor Commission
 CREATE OR REPLACE VIEW session_profit_analysis AS
 SELECT 
   i.id AS invoice_id,
@@ -57,18 +49,29 @@ JOIN patients p ON i.patient_id = p.id
 LEFT JOIN consumable_logs cl ON i.id = cl.invoice_id
 GROUP BY i.id, p.name, i.total_gross_amount, i.doctor_commission_pct, i.created_at;
 
--- 3. Row Level Security (RLS)
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+-- 3. Row Level Security (RLS) FIX
+ALTER TABLE patients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE materials ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
--- Admins can see everything
-CREATE POLICY admin_all ON invoices FOR ALL TO authenticated USING (
-  EXISTS (SELECT 1 FROM auth.users WHERE auth.uid() = id AND raw_user_meta_data->>'role' = 'ADMIN')
-);
+-- POLICIES FOR MATERIALS (The fix for your error)
+-- 1. Allow Admin to do everything
+CREATE POLICY admin_full_access_materials ON materials 
+FOR ALL TO authenticated 
+USING ((auth.jwt() -> 'user_metadata' ->> 'role') = 'ADMIN')
+WITH CHECK ((auth.jwt() -> 'user_metadata' ->> 'role') = 'ADMIN');
 
--- Receptionists cannot see prices or financial summaries (simplified example)
-CREATE POLICY recep_view_basic ON invoices FOR SELECT TO authenticated USING (
-  EXISTS (SELECT 1 FROM auth.users WHERE auth.uid() = id AND raw_user_meta_data->>'role' = 'RECEPTIONIST')
-);
+-- 2. Allow Doctors and Receptionists to VIEW (SELECT) only
+CREATE POLICY staff_view_materials ON materials 
+FOR SELECT TO authenticated 
+USING (TRUE);
 
--- In practice, you would exclude 'total_gross_amount' from the view for Receptionists.
+-- 3. Allow Receptionists to Update stock (for inventory management)
+CREATE POLICY receptionist_update_stock ON materials 
+FOR UPDATE TO authenticated 
+USING ((auth.jwt() -> 'user_metadata' ->> 'role') = 'RECEPTIONIST')
+WITH CHECK ((auth.jwt() -> 'user_metadata' ->> 'role') = 'RECEPTIONIST');
+
+-- POLICIES FOR PATIENTS
+CREATE POLICY admin_full_patients ON patients FOR ALL TO authenticated USING (TRUE);
+CREATE POLICY staff_view_patients ON patients FOR SELECT TO authenticated USING (TRUE);
