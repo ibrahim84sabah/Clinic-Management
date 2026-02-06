@@ -1,17 +1,50 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Get environment variables with fallbacks to avoid "required" errors during initialization.
-// In Vercel, make sure to add SUPABASE_URL and SUPABASE_ANON_KEY to your environment variables.
-const supabaseUrl = (
-  (typeof process !== 'undefined' && (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL)) || 
-  'https://placeholder-project.supabase.co'
-).trim();
+/**
+ * Robust Environment Variable Detection
+ * Supports:
+ * - process.env (Standard Node/Vercel)
+ * - import.meta.env (Vite)
+ * - NEXT_PUBLIC_ prefixes (Standard Vercel/Next.js for browser injection)
+ * - VITE_ prefixes (Standard Vite for browser injection)
+ */
+const getEnv = (key: string): string => {
+  const providers = [
+    // @ts-ignore
+    () => typeof process !== 'undefined' && process.env ? process.env[key] : null,
+    // @ts-ignore
+    () => typeof process !== 'undefined' && process.env ? process.env[`NEXT_PUBLIC_${key}`] : null,
+    // @ts-ignore
+    () => typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env[key] : null,
+    // @ts-ignore
+    () => typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env[`VITE_${key}`] : null,
+    // @ts-ignore
+    () => typeof window !== 'undefined' && (window as any)._env_ ? (window as any)._env_[key] : null
+  ];
 
-const supabaseAnonKey = (
-  (typeof process !== 'undefined' && (process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) || 
-  'placeholder-anon-key'
-).trim();
+  for (const get of providers) {
+    try {
+      const val = get();
+      if (val) return val;
+    } catch (e) {}
+  }
+  return '';
+};
 
-// Export the client. If placeholders are used, API calls will fail gracefully in the console rather than crashing the app mount.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabaseUrl = getEnv('SUPABASE_URL');
+const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
+
+// Use placeholders to prevent createClient from throwing an error during initialization
+// App.tsx handles the visual warning for the user if these are placeholders
+const url = supabaseUrl || 'https://placeholder-project.supabase.co';
+const key = supabaseAnonKey || 'placeholder-anon-key';
+
+export const supabase = createClient(url, key);
+
+// Log status for developers
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.warn(
+    "DentaGlow: Supabase credentials not detected in environment. " +
+    "Ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in your hosting provider (Vercel/Netlify)."
+  );
+}
