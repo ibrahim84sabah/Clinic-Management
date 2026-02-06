@@ -1,21 +1,21 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-// analyzeClinicData processes clinic context and user queries using Gemini 3 Pro.
+/**
+ * Analyzes clinic data using Gemini AI.
+ * The API key is obtained exclusively from process.env.API_KEY.
+ */
 export const analyzeClinicData = async (prompt: string, dataContext: any) => {
-  // Use process.env.API_KEY exclusively as required by the library guidelines.
-  // @ts-ignore - process.env is injected by the environment.
-  const apiKey = process.env.API_KEY;
+  // Accessing API_KEY directly from process.env as per GenAI guidelines
+  // @ts-ignore
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
   
   if (!apiKey) {
-    throw new Error(
-      "DentaGlow: Gemini API_KEY is missing. " +
-      "Please ensure 'API_KEY' is configured in the environment."
-    );
+    throw new Error("DentaGlow: Gemini API_KEY is missing in the environment.");
   }
 
-  // Always initialize the GoogleGenAI instance directly with the required named parameter.
-  // @ts-ignore
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Initialize inside the function to ensure the latest environment variables are used.
+  const ai = new GoogleGenAI({ apiKey });
   
   const systemInstruction = `
     أنت مستشار استراتيجي أول لعيادة طبية وتجميلية.
@@ -32,18 +32,16 @@ export const analyzeClinicData = async (prompt: string, dataContext: any) => {
   const fullPrompt = `سياق البيانات الحالي: ${contextStr}\n\nسؤال المستخدم: ${prompt}`;
 
   try {
-    // Using ai.models.generateContent with 'gemini-3-pro-preview' for complex strategic analysis.
     const response = await ai.models.generateContent({
       model: "gemini-3-pro-preview",
       contents: fullPrompt,
       config: {
         systemInstruction,
-        // Configured for deep thinking and reasoning with a 32k token budget.
         thinkingConfig: { thinkingBudget: 32768 }
       },
     });
 
-    // Directly access the .text property of the GenerateContentResponse.
+    // Access .text property directly (it is a getter, not a method)
     return response.text;
   } catch (error) {
     console.error("Gemini API Error:", error);

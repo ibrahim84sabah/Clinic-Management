@@ -1,29 +1,42 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { analyzeClinicData } from '../services/gemini';
+import { supabase } from '../services/supabase';
 
 const ClinicAI: React.FC = () => {
   const [query, setQuery] = useState('');
   const [response, setResponse] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [liveContext, setLiveContext] = useState<any>(null);
 
-  // Simulated data to feed as context to the AI
-  const mockContext = {
-    inventory: [
-      { name: 'إبر 1سم', stock: 15, limit: 20 },
-      { name: 'عبوة بوتوكس', stock: 5, limit: 10 }
-    ],
-    last_week_profit: 4200,
-    top_service: 'زراعة أسنان',
-    patient_satisfaction: '4.8/5'
-  };
+  useEffect(() => {
+    const fetchContext = async () => {
+      try {
+        // Fetch key stats for AI context
+        const { data: materials } = await supabase.from('materials').select('name, stock_quantity, order_limit');
+        const { data: profit } = await supabase.from('session_profit_analysis').select('net_profit').limit(50);
+        
+        const lowStock = materials?.filter(m => m.stock_quantity <= m.order_limit) || [];
+        const totalNet = profit?.reduce((sum, p) => sum + Number(p.net_profit), 0) || 0;
+
+        setLiveContext({
+          inventory_alerts: lowStock,
+          recent_total_net_profit: totalNet,
+          clinic_status: 'Active',
+          data_source: 'Supabase Live Connection'
+        });
+      } catch (err) {
+        console.warn("Context fetch failed, using fallback:", err);
+      }
+    };
+    fetchContext();
+  }, []);
 
   const handleAsk = async () => {
     if (!query) return;
     setIsLoading(true);
     setResponse('');
     try {
-      const result = await analyzeClinicData(query, mockContext);
+      const result = await analyzeClinicData(query, liveContext || { status: 'No live data yet' });
       setResponse(result || 'لم يتم توليد استجابة.');
     } catch (error) {
       setResponse(`خطأ: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
@@ -43,12 +56,13 @@ const ClinicAI: React.FC = () => {
             <span className="font-bold uppercase tracking-widest text-indigo-300 text-[10px] lg:text-xs">محرك ذكاء العيادة الاستراتيجي</span>
           </div>
           <h2 className="text-2xl lg:text-4xl font-bold mb-4">تطوير عيادتك باستخدام Gemini 3 Pro</h2>
-          <p className="text-indigo-200 text-sm lg:text-lg mb-8">اسأل عن اتجاهات المخزون، تحسين الأرباح، أو استراتيجيات الاحتفاظ بالمرضى.</p>
+          <p className="text-indigo-200 text-sm lg:text-lg mb-8">اسأل عن اتجاهات المخزون، تحسين الأرباح، أو استراتيجيات الاحتفاظ بالمرضى بناءً على بياناتك الحقيقية.</p>
           
           <div className="flex flex-col sm:flex-row gap-3">
             <input 
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleAsk()}
               placeholder="مثلاً: 'كيف يمكنني زيادة الأرباح؟'"
               className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 lg:px-6 lg:py-4 outline-none focus:ring-2 focus:ring-indigo-400 placeholder-indigo-300 text-white text-right text-sm lg:text-base"
             />
@@ -82,7 +96,7 @@ const ClinicAI: React.FC = () => {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:p-8 shadow-sm prose prose-indigo max-w-none animate-in slide-in-from-bottom-4 duration-500">
           <div className="flex items-center gap-2 mb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b pb-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            تقرير استراتيجي تم توليده
+            تقرير استراتيجي تم توليده بناءً على بيانات حية من السحابة
           </div>
           <div className="whitespace-pre-wrap text-slate-700 leading-relaxed text-right text-sm lg:text-base">
             {response}
@@ -90,13 +104,19 @@ const ClinicAI: React.FC = () => {
         </div>
       )}
 
+      {!response && !isLoading && ( liveContext && (
+        <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl mb-4 text-emerald-800 text-xs font-bold text-center">
+          ✓ تم الاتصال بقاعدة البيانات بنجاح. الذكاء الاصطناعي جاهز لتحليل بياناتك.
+        </div>
+      ))}
+
       {!response && !isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 lg:gap-4 mt-8">
           {[
-            "حلل أفضل الخدمات أداءً هذا الشهر",
-            "ما هي عناصر المخزون المعرضة للنفاد؟",
-            "حدد أنماط حجز المرضى الموسمية",
-            "اقترح استراتيجيات لتقليل تكلفة المواد الاستهلاكية"
+            "حلل وضع المخزون الحالي واقترح خطة شراء",
+            "كيف يمكن تحسين صافي الربح بناءً على الجلسات الأخيرة؟",
+            "اقترح استراتيجية تسويقية لجذب مرضى جدد",
+            "ما هي أكثر الخدمات ربحية للعيادة حالياً؟"
           ].map((suggestion, i) => (
             <button 
               key={i}

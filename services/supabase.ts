@@ -1,50 +1,30 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Robust Environment Variable Detection
- * Supports:
- * - process.env (Standard Node/Vercel)
- * - import.meta.env (Vite)
- * - NEXT_PUBLIC_ prefixes (Standard Vercel/Next.js for browser injection)
- * - VITE_ prefixes (Standard Vite for browser injection)
+ * Robust Environment Variable Detection for Supabase.
+ * In Vercel, these are injected into process.env.
  */
 const getEnv = (key: string): string => {
-  const providers = [
-    // @ts-ignore
-    () => typeof process !== 'undefined' && process.env ? process.env[key] : null,
-    // @ts-ignore
-    () => typeof process !== 'undefined' && process.env ? process.env[`NEXT_PUBLIC_${key}`] : null,
-    // @ts-ignore
-    () => typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env[key] : null,
-    // @ts-ignore
-    () => typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env[`VITE_${key}`] : null,
-    // @ts-ignore
-    () => typeof window !== 'undefined' && (window as any)._env_ ? (window as any)._env_[key] : null
-  ];
+  // Use casting to 'any' for both process and import.meta to avoid TS errors
+  // @ts-ignore
+  const pEnv = typeof process !== 'undefined' && process.env ? process.env : {};
+  // @ts-ignore
+  const mEnv = typeof import.meta !== 'undefined' && (import.meta as any).env ? (import.meta as any).env : {};
 
-  for (const get of providers) {
-    try {
-      const val = get();
-      if (val) return val;
-    } catch (e) {}
-  }
-  return '';
+  return pEnv[key] || pEnv[`NEXT_PUBLIC_${key}`] || mEnv[`VITE_${key}`] || mEnv[key] || '';
 };
 
 const supabaseUrl = getEnv('SUPABASE_URL');
 const supabaseAnonKey = getEnv('SUPABASE_ANON_KEY');
 
-// Use placeholders to prevent createClient from throwing an error during initialization
-// App.tsx handles the visual warning for the user if these are placeholders
+// We use placeholders if variables are missing to prevent the app from crashing on start.
+// App.tsx uses this to show a helpful setup screen instead of a white page.
 const url = supabaseUrl || 'https://placeholder-project.supabase.co';
 const key = supabaseAnonKey || 'placeholder-anon-key';
 
 export const supabase = createClient(url, key);
 
-// Log status for developers
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    "DentaGlow: Supabase credentials not detected in environment. " +
-    "Ensure SUPABASE_URL and SUPABASE_ANON_KEY are set in your hosting provider (Vercel/Netlify)."
-  );
+  console.warn("DentaGlow: Supabase credentials not found. Check Vercel Environment Variables.");
 }
