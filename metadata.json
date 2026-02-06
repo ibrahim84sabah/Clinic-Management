@@ -1,0 +1,7 @@
+{
+  "name": "Clinic Management",
+  "description": "Comprehensive Dental and Beauty Clinic Management System with dual-inventory profit tracking, patient CRM, and AI-powered business analysis.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
