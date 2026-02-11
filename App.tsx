@@ -7,9 +7,9 @@ import Dashboard from './components/Dashboard';
 import PatientCRM from './components/PatientCRM';
 import Inventory from './components/Inventory';
 import Accounting from './components/Accounting';
-import ClinicAI from './components/ClinicAI';
 import Login from './components/Login';
 import AccountManagement from './components/AccountManagement';
+import Appointments from './components/Appointments';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -17,20 +17,16 @@ const App: React.FC = () => {
   const [connectionError, setConnectionError] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [notifications] = useState<Notification[]>([]);
 
-  // Initialize application and handle authentication state
   useEffect(() => {
     const initApp = async () => {
       try {
-        // 1. Check if we can reach Supabase
         const isConnected = await checkDbConnection();
         if (!isConnected) {
           setConnectionError(true);
         }
 
-        // 2. Refresh session if exists
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setCurrentUser({
@@ -85,7 +81,6 @@ const App: React.FC = () => {
     );
   }
 
-  // Handle case where Supabase is unreachable (wrong keys or CORS)
   if (connectionError && !currentUser) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
@@ -95,7 +90,7 @@ const App: React.FC = () => {
           </div>
           <h2 className="text-xl font-bold text-slate-800">خطأ في الاتصال بالسحاب</h2>
           <p className="text-slate-500 text-sm leading-relaxed">
-            تعذر الاتصال بقاعدة بيانات Supabase. يرجى التأكد من أن رابط المشروع والمفاتيح صحيحة في إعدادات Vercel، وتأكد من إضافة رابط هذا الموقع إلى قائمة الـ CORS في Supabase.
+            تعذر الاتصال بقاعدة بيانات Supabase. يرجى التأكد من إعدادات الاتصال.
           </p>
           <button onClick={() => window.location.reload()} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors">إعادة المحاولة</button>
         </div>
@@ -111,10 +106,10 @@ const App: React.FC = () => {
 
   const tabs = [
     { id: 'dashboard', label: 'لوحة التحكم', icon: ICONS.Dashboard, roles: [UserRole.ADMIN, UserRole.DOCTOR, UserRole.RECEPTIONIST] },
+    { id: 'appointments', label: 'المواعيد', icon: ICONS.Calendar, roles: [UserRole.ADMIN, UserRole.DOCTOR, UserRole.RECEPTIONIST] },
     { id: 'patients', label: 'إدارة المرضى', icon: ICONS.Users, roles: [UserRole.ADMIN, UserRole.DOCTOR, UserRole.RECEPTIONIST] },
     { id: 'inventory', label: 'المخزون', icon: ICONS.Inventory, roles: [UserRole.ADMIN, UserRole.RECEPTIONIST] },
     { id: 'accounting', label: 'المحاسبة', icon: ICONS.Accounting, roles: [UserRole.ADMIN] },
-    { id: 'ai', label: 'الذكاء الاصطناعي', icon: ICONS.AI, roles: [UserRole.ADMIN, UserRole.DOCTOR] },
     { id: 'accounts', label: 'الموظفين', icon: ICONS.Shield, roles: [UserRole.ADMIN] },
   ];
 
@@ -122,7 +117,6 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans" dir="rtl">
-      {/* Sidebar */}
       <aside className={`bg-white border-l border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden lg:flex flex-col`}>
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
@@ -131,7 +125,7 @@ const App: React.FC = () => {
           {isSidebarOpen && <span className="font-black text-slate-800 text-xl tracking-tight">DentaGlow</span>}
         </div>
 
-        <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto">
+        <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto no-scrollbar">
           {filteredTabs.map((tab) => (
             <button
               key={tab.id}
@@ -157,9 +151,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
         <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-8 shrink-0">
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden lg:block text-slate-400 hover:text-slate-600">
              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
@@ -167,7 +159,7 @@ const App: React.FC = () => {
           
           <div className="flex items-center gap-4">
             <div className="text-left">
-              <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">{currentUser.role === UserRole.ADMIN ? 'مدير' : currentUser.role === UserRole.DOCTOR ? 'طبيب' : 'استقبال'}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">{currentUser.role}</p>
               <p className="text-sm font-black text-slate-800 leading-none">{currentUser.name}</p>
             </div>
             <div className="w-10 h-10 rounded-full bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center font-bold text-indigo-600 shrink-0">
@@ -176,12 +168,12 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-6 lg:p-10">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-8">
           {activeTab === 'dashboard' && <Dashboard onNavigate={setActiveTab} userRole={userRole} />}
+          {activeTab === 'appointments' && <Appointments currentUser={currentUser} />}
           {activeTab === 'patients' && <PatientCRM />}
           {activeTab === 'inventory' && <Inventory />}
           {activeTab === 'accounting' && <Accounting />}
-          {activeTab === 'ai' && <ClinicAI />}
           {activeTab === 'accounts' && <AccountManagement />}
         </div>
       </main>
@@ -189,5 +181,4 @@ const App: React.FC = () => {
   );
 };
 
-// Fix for: Module '"file:///App"' has no default export
 export default App;

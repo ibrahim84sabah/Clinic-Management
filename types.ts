@@ -10,12 +10,30 @@ export interface User {
   username: string;
   name: string;
   role: UserRole;
-  password?: string; // In a real app, this wouldn't be sent to the frontend
+  password?: string;
 }
 
 export enum MaterialType {
   SERVICE = 'SERVICE',
   CONSUMABLE = 'CONSUMABLE'
+}
+
+export enum AppointmentStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  CANCELLED = 'CANCELLED',
+  COMPLETED = 'COMPLETED'
+}
+
+export interface Appointment {
+  id: string;
+  patient_id: string;
+  patient_name?: string;
+  doctor_id: string;
+  appointment_date: string;
+  status: AppointmentStatus;
+  notes: string;
+  created_at: string;
 }
 
 export interface Material {
@@ -63,7 +81,7 @@ export interface SessionRecord {
 
 export interface Expense {
   id: string;
-  category: string; // Salary, Petty Cash, Maintenance
+  category: string;
   description: string;
   amount: number;
   date: string;
