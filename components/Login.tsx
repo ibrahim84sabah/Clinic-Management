@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -8,212 +8,185 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [username, setUsername] = useState(''); // تم التغيير من email إلى username
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>(UserRole.ADMIN);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [dbStatus, setDbStatus] = useState<'CHECKING' | 'READY' | 'EMPTY' | 'ERROR'>('CHECKING');
 
-  // وظيفة داخلية لتحويل اسم المستخدم إلى بريد إلكتروني وهمي متوافق مع Supabase
-  const formatAsInternalEmail = (id: string) => {
-    return `${id.trim().toLowerCase()}@clinic.id`;
+  // تشخيص حالة قاعدة البيانات عند فتح الشاشة
+  useEffect(() => {
+    const checkDatabase = async () => {
+      try {
+        const { data, count, error } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true });
+
+        if (error) {
+          console.error("DB Diagnostic Error:", error);
+          setDbStatus('ERROR');
+          return;
+        }
+
+        if (count === 0) {
+          setDbStatus('EMPTY');
+        } else {
+          setDbStatus('READY');
+        }
+      } catch (err) {
+        setDbStatus('ERROR');
+      }
+    };
+    checkDatabase();
+  }, []);
+
+  const createEmergencyAdmin = async () => {
+    setIsLoading(true);
+    setError('');
+    try {
+      const { error: insertError } = await supabase.from('profiles').insert([
+        {
+          username: 'admin',
+          name: 'المدير العام (افتراضي)',
+          role: UserRole.ADMIN,
+          password_plain: 'admin123'
+        }
+      ]);
+
+      if (insertError) throw insertError;
+      
+      setDbStatus('READY');
+      setError('تم إنشاء حساب المدير بنجاح! يمكنك الدخول الآن.');
+    } catch (err: any) {
+      setError('فشل الإنشاء التلقائي: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setIsLoading(true);
 
-    const internalEmail = formatAsInternalEmail(username);
+    const cleanUsername = username.trim().toLowerCase();
 
     try {
-      if (isSignUp) {
-        // التحقق من صحة اسم المستخدم (لا يسمح بالمسافات)
-        if (username.includes(' ')) {
-          throw new Error('اسم المستخدم لا يجب أن يحتوي على مسافات');
-        }
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', cleanUsername)
+        .eq('password_plain', password)
+        .maybeSingle();
 
-        const { data, error: authError } = await supabase.auth.signUp({
-          email: internalEmail,
-          password,
-          options: {
-            data: {
-              name: name || 'مستخدم جديد',
-              role: role,
-              username: username.trim().toLowerCase()
-            },
-          },
-        });
+      if (profileErr) throw profileErr;
 
-        if (authError) throw authError;
-
-        if (data.user && data.session === null) {
-          setSuccess('تم إنشاء الحساب بنجاح! يمكنك الآن تسجيل الدخول باستخدام الـ ID الخاص بك.');
-          setIsSignUp(false);
-        } else if (data.user && data.session) {
-          onLogin({
-            id: data.user.id,
-            username: username.trim().toLowerCase(),
-            name: data.user.user_metadata?.name || 'مستخدم جديد',
-            role: (data.user.user_metadata?.role as UserRole) || UserRole.RECEPTIONIST
-          });
-        }
-      } else {
-        const { data, error: authError } = await supabase.auth.signInWithPassword({
-          email: internalEmail,
-          password,
-        });
-
-        if (authError) {
-          if (authError.message === 'Invalid login credentials') {
-            throw new Error('اسم المستخدم (ID) أو كلمة المرور غير صحيحة.');
-          }
-          throw authError;
-        }
-
-        if (data.user) {
-          onLogin({
-            id: data.user.id,
-            username: username.trim().toLowerCase(),
-            name: data.user.user_metadata?.name || 'مستخدم العيادة',
-            role: (data.user.user_metadata?.role as UserRole) || UserRole.RECEPTIONIST
-          });
-        }
+      if (!profile) {
+        throw new Error('بيانات الدخول غير صحيحة. تأكد من المعرف وكلمة المرور.');
       }
+
+      onLogin({
+        id: profile.id,
+        username: profile.username,
+        name: profile.name,
+        role: profile.role as UserRole
+      });
+
     } catch (err: any) {
-      setError(err.message || 'حدث خطأ ما أثناء المصادقة');
+      setError(err.message || 'حدث خطأ أثناء محاولة الدخول');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-500">
-        <div className="p-8 bg-indigo-600 text-white text-center relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans" dir="rtl">
+      <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in duration-500">
+        <div className="p-10 bg-indigo-600 text-white text-center relative overflow-hidden">
           <div className="relative z-10">
-            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mx-auto mb-4 backdrop-blur-md border border-white/30 shadow-xl">
-              <span className="text-3xl font-black tracking-tighter">D</span>
+            <div className="w-20 h-20 bg-white/20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 backdrop-blur-md border border-white/30 shadow-2xl">
+              <span className="text-4xl font-black tracking-tighter">D</span>
             </div>
-            <h1 className="text-2xl font-black">بوابة عيادة دنتـا</h1>
-            <p className="text-indigo-100 text-sm mt-1 font-medium italic">نظام الدخول الموحد (ID Login)</p>
+            <h1 className="text-3xl font-black mb-2 tracking-tight">عيادة دنتـا جلو</h1>
+            <p className="text-indigo-100 text-sm font-bold italic opacity-80">نظام الإدارة السحابي الموحد</p>
           </div>
-          <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-          <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-indigo-400/20 rounded-full blur-xl"></div>
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl opacity-50"></div>
         </div>
         
-        <form onSubmit={handleAuth} className="p-8 space-y-5 text-right">
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-2">
-            <button 
-              type="button"
-              onClick={() => { setIsSignUp(false); setError(''); setSuccess(''); }}
-              className={`flex-1 py-2.5 text-[11px] font-black rounded-xl transition-all uppercase tracking-wider ${!isSignUp ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              تسجيل الدخول
-            </button>
-            <button 
-              type="button"
-              onClick={() => { setIsSignUp(true); setError(''); setSuccess(''); }}
-              className={`flex-1 py-2.5 text-[11px] font-black rounded-xl transition-all uppercase tracking-wider ${isSignUp ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              إنشاء حساب موظف
-            </button>
+        <div className="p-10 space-y-6 text-right">
+          {dbStatus === 'EMPTY' && (
+            <div className="bg-amber-50 border border-amber-200 p-5 rounded-[1.5rem] mb-4 animate-bounce">
+              <p className="text-amber-800 text-xs font-black text-center mb-3 leading-relaxed">
+                قاعدة البيانات فارغة حالياً. هل ترغب في تفعيل حساب المدير الافتراضي؟
+              </p>
+              <button 
+                onClick={createEmergencyAdmin}
+                className="w-full bg-amber-500 text-white py-2.5 rounded-xl font-black text-[11px] hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+              >
+                تفعيل حساب Admin / admin123
+              </button>
+            </div>
+          )}
+
+          <div className="text-center mb-4">
+            <h2 className="text-slate-800 font-black text-xl">تسجيل الدخول</h2>
+            <p className="text-slate-400 text-[10px] font-black mt-1 uppercase tracking-widest">ادخل بيانات الموظف</p>
           </div>
 
           {error && (
-            <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-[11px] font-black border border-rose-100 animate-shake flex items-center gap-2">
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-              {error}
+            <div className="bg-rose-50 text-rose-600 p-4 rounded-2xl text-[11px] font-black border border-rose-100 animate-shake flex items-center gap-3">
+              <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center shrink-0">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <span className="leading-tight">{error}</span>
             </div>
           )}
 
-          {success && (
-            <div className="bg-emerald-50 text-emerald-600 p-4 rounded-2xl text-[11px] font-black border border-emerald-100 flex items-center gap-2">
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-              {success}
-            </div>
-          )}
-
-          {isSignUp && (
-            <div className="space-y-4 animate-in slide-in-from-top-2">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-1.5 mr-1 uppercase tracking-widest">الاسم الوظيفي</label>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 mr-2 uppercase tracking-widest">المعرف الوظيفي (ID)</label>
+              <div className="relative">
                 <input 
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="د. سارة جونسون"
-                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-right text-sm font-bold"
-                  required={isSignUp}
+                  type="text" 
+                  value={username} 
+                  onChange={(e) => setUsername(e.target.value)} 
+                  placeholder="admin" 
+                  className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 font-black text-right transition-all placeholder:text-slate-300" 
+                  required 
+                  dir="ltr" 
                 />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-1.5 mr-1 uppercase tracking-widest">المستوى الإداري</label>
-                <select 
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-right text-sm font-bold appearance-none"
-                >
-                  <option value={UserRole.ADMIN}>مدير النظام (Full Access)</option>
-                  <option value={UserRole.DOCTOR}>طبيب (Clinical Access)</option>
-                  <option value={UserRole.RECEPTIONIST}>استقبال (Reception Access)</option>
-                </select>
+                <span className="absolute left-4 top-4 text-slate-300 font-black">@</span>
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 mb-1.5 mr-1 uppercase tracking-widest">اسم المستخدم (ID)</label>
-            <div className="relative">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 mr-2 uppercase tracking-widest">كلمة المرور</label>
               <input 
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="مثال: dr_ahmed"
-                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-right text-sm font-black tracking-tight"
-                required
-                dir="ltr"
+                type="password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                placeholder="admin123" 
+                className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 font-black text-right transition-all placeholder:text-slate-300" 
+                required 
+                dir="ltr" 
               />
-              <svg className="w-5 h-5 absolute left-4 top-3.5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 mb-1.5 mr-1 uppercase tracking-widest">كلمة المرور</label>
-            <div className="relative">
-              <input 
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-right text-sm font-black"
-                required
-                dir="ltr"
-              />
-              <svg className="w-5 h-5 absolute left-4 top-3.5 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-            </div>
-          </div>
-
-          <button 
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-sm hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              isSignUp ? 'تفعيل حساب الموظف' : 'دخول النظام'
-            )}
-          </button>
+            <button 
+              type="submit" 
+              disabled={isLoading} 
+              className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-[0.98] mt-4"
+            >
+              {isLoading ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : 'دخول النظام'}
+            </button>
+          </form>
           
-          <p className="text-[10px] text-slate-400 text-center font-bold">
-            نظام DentaGlow Pro v2.1.0 • مشفر سحابياً
-          </p>
-        </form>
+          <div className="text-center pt-4 border-t border-slate-50">
+             <p className="text-[10px] text-slate-300 font-bold leading-relaxed">
+               نظام DentaGlow Pro v3.0 • حالة السحابة: {dbStatus === 'READY' ? 'متصلة وجاهزة' : dbStatus === 'EMPTY' ? 'بانتظار التهيئة' : 'خطأ في الربط'}
+             </p>
+          </div>
+        </div>
       </div>
     </div>
   );
