@@ -27,11 +27,9 @@ const App: React.FC = () => {
           setConnectionError(true);
         }
 
-        // استعادة الجلسة
         const savedUser = localStorage.getItem('denta_user_session');
         if (savedUser) {
           const user = JSON.parse(savedUser);
-          // التأكد من أن المستخدم ما زال موجوداً وبنفس البيانات
           const { data, error } = await supabase
             .from('profiles')
             .select('*')
@@ -82,7 +80,7 @@ const App: React.FC = () => {
           <div className="absolute top-0 w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
         <div className="text-center space-y-2">
-          <p className="text-slate-800 font-black text-xl tracking-tight">DentaGlow Pro</p>
+          <p className="text-slate-800 font-black text-xl tracking-tight">Ibrahim Hospital</p>
           <p className="text-slate-400 text-sm animate-pulse font-medium">جاري المزامنة السحابية...</p>
         </div>
       </div>
@@ -120,13 +118,14 @@ const App: React.FC = () => {
   const filteredTabs = tabs.filter(tab => tab.roles.includes(currentUser.role));
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans" dir="rtl">
+    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans relative" dir="rtl">
+      {/* Sidebar for Desktop */}
       <aside className={`bg-white border-l border-slate-200 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'} hidden lg:flex flex-col shrink-0 shadow-sm`}>
         <div className="p-6 flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-            <span className="text-white font-black text-xl">D</span>
+            <span className="text-white font-black text-xl">I</span>
           </div>
-          {isSidebarOpen && <span className="font-black text-slate-800 text-xl tracking-tight">DentaGlow</span>}
+          {isSidebarOpen && <span className="font-black text-slate-800 text-xl tracking-tight">Ibrahim Hospital</span>}
         </div>
         <nav className="flex-1 px-4 space-y-2 mt-4 overflow-y-auto no-scrollbar">
           {filteredTabs.map((tab) => (
@@ -150,23 +149,87 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
-          <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all">
-             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          <div className="flex items-center gap-3">
-            <div className="text-left hidden xs:block">
-              <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">{currentUser.role === UserRole.ADMIN ? 'مدير' : currentUser.role === UserRole.DOCTOR ? 'طبيب' : 'استقبال'}</p>
-              <p className="text-sm font-black text-slate-800 leading-none">{currentUser.name}</p>
+      {/* Mobile/Tablet Menu Drawer (Overlay) */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] lg:hidden animate-in fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+        >
+          <div 
+            className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col animate-in slide-in-from-right"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6 flex items-center justify-between border-b border-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black">I</span>
+                </div>
+                <span className="font-black text-slate-800">Ibrahim Hospital</span>
+              </div>
+              <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 text-slate-400">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 border-2 border-white shadow-sm flex items-center justify-center font-black text-indigo-600 text-sm">
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+              {filteredTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => navigateTo(tab.id)}
+                  className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${
+                    activeTab === tab.id ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <tab.icon className="w-5 h-5 shrink-0" />
+                  <span className="font-black text-sm">{tab.label}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="p-4 border-t border-slate-50">
+               <button onClick={handleLogout} className="w-full flex items-center gap-3 p-4 text-rose-500 bg-rose-50 rounded-2xl font-black text-sm">
+                 <ICONS.Logout className="w-5 h-5 shrink-0" />
+                 <span>تسجيل الخروج</span>
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 shrink-0">
+          <div className="flex items-center gap-2">
+            {/* Burger Menu for Mobile/Tablet */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)} 
+              className="p-2 text-slate-400 hover:bg-slate-50 rounded-xl lg:hidden"
+            >
+               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            {/* Collapse Sidebar for Desktop */}
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl hidden lg:block transition-all"
+            >
+               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <span className="font-black text-slate-800 lg:hidden text-lg">مستشفى ابراهيم</span>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="text-left hidden sm:block">
+              <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1 text-right">
+                {currentUser.role === UserRole.ADMIN ? 'مدير' : currentUser.role === UserRole.DOCTOR ? 'طبيب' : 'استقبال'}
+              </p>
+              <p className="text-xs font-black text-slate-800 leading-none">{currentUser.name}</p>
+            </div>
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 border-2 border-white shadow-sm flex items-center justify-center font-black text-indigo-600 text-xs">
               {currentUser.name.charAt(0)}
             </div>
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        {/* Dynamic Section Content */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
           <div className="max-w-[1600px] mx-auto">
             {activeTab === 'dashboard' && <Dashboard onNavigate={navigateTo} userRole={currentUser.role} />}
             {activeTab === 'appointments' && <Appointments currentUser={currentUser} />}
@@ -176,6 +239,32 @@ const App: React.FC = () => {
             {activeTab === 'accounts' && <AccountManagement />}
           </div>
         </div>
+
+        {/* Sticky Bottom Navigation for Mobile/Tablet */}
+        <nav className="lg:hidden fixed bottom-4 left-4 right-4 bg-white/80 backdrop-blur-xl border border-white/20 shadow-2xl rounded-3xl h-16 flex items-center justify-around px-2 z-50">
+          {filteredTabs.slice(0, 4).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl transition-all ${
+                activeTab === tab.id ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'
+              }`}
+            >
+              <tab.icon className="w-5 h-5 mb-1" />
+              <span className="text-[8px] font-black tracking-tighter truncate">{tab.label}</span>
+            </button>
+          ))}
+          {/* More button to open drawer if items > 4 */}
+          {filteredTabs.length > 4 && (
+            <button
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center w-14 h-14 rounded-2xl text-slate-400"
+            >
+              <svg className="w-5 h-5 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 6h16M4 12h16M4 18h16" /></svg>
+              <span className="text-[8px] font-black tracking-tighter">المزيد</span>
+            </button>
+          )}
+        </nav>
       </main>
     </div>
   );

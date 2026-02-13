@@ -105,7 +105,7 @@ const Inventory: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">المخزون والخدمات</h1>
-          <p className="text-slate-500 font-medium italic">إدارة سحابية موحدة لعيادة دنتـا جلـو.</p>
+          <p className="text-slate-500 font-medium italic">إدارة سحابية موحدة لمستشفى ابراهيم.</p>
         </div>
         <div className="flex gap-3">
           <button 

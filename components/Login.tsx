@@ -105,9 +105,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <div className="p-10 bg-indigo-600 text-white text-center relative overflow-hidden">
           <div className="relative z-10">
             <div className="w-20 h-20 bg-white/20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 backdrop-blur-md border border-white/30 shadow-2xl">
-              <span className="text-4xl font-black tracking-tighter">D</span>
+              <span className="text-4xl font-black tracking-tighter">I</span>
             </div>
-            <h1 className="text-3xl font-black mb-2 tracking-tight">عيادة دنتـا جلو</h1>
+            <h1 className="text-3xl font-black mb-2 tracking-tight">مستشفى ابراهيم</h1>
             <p className="text-indigo-100 text-sm font-bold italic opacity-80">نظام الإدارة السحابي الموحد</p>
           </div>
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl opacity-50"></div>
@@ -183,7 +183,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           
           <div className="text-center pt-4 border-t border-slate-50">
              <p className="text-[10px] text-slate-300 font-bold leading-relaxed">
-               نظام DentaGlow Pro v3.0 • حالة السحابة: {dbStatus === 'READY' ? 'متصلة وجاهزة' : dbStatus === 'EMPTY' ? 'بانتظار التهيئة' : 'خطأ في الربط'}
+               نظام Ibrahim Hospital v3.0 • حالة السحابة: {dbStatus === 'READY' ? 'متصلة وجاهزة' : dbStatus === 'EMPTY' ? 'بانتظار التهيئة' : 'خطأ في الربط'}
              </p>
           </div>
         </div>

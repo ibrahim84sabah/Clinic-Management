@@ -10,7 +10,7 @@ export const analyzeClinicData = async (prompt: string, dataContext: any) => {
   const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
 
   if (!apiKey) {
-    throw new Error("DentaGlow AI: مفتاح API_KEY مفقود في البيئة.");
+    throw new Error("Ibrahim Hospital AI: مفتاح API_KEY مفقود في البيئة.");
   }
 
   // استخدام التهيئة المطلوبة تماماً
@@ -18,7 +18,7 @@ export const analyzeClinicData = async (prompt: string, dataContext: any) => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   const systemInstruction = `
-    أنت المستشار الاستراتيجي الرئيسي لعيادة (دينتا جلو).
+    أنت المستشار الاستراتيجي الرئيسي لـ (مستشفى ابراهيم).
     لديك إمكانية الوصول المباشر إلى قاعدة بيانات Supabase.
     مهمتك: تقديم تحليل بيانات عميق، كشف نقاط الخلل المالي، وتحسين إدارة المخزون.
     
