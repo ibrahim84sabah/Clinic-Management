@@ -25,21 +25,26 @@ const PatientCRM: React.FC = () => {
 
   const fetchPatients = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (!error && data) {
-      setPatients(data);
+    try {
+      const { data, error } = await supabase
+        .from('patients')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) {
+        setPatients(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Error fetching patients:", err);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const filteredPatients = useMemo(() => {
     return patients.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.phones.some(phone => phone.includes(searchQuery))
+      (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (Array.isArray(p.phones) && p.phones.some(phone => phone.includes(searchQuery)))
     );
   }, [patients, searchQuery]);
 
@@ -51,12 +56,12 @@ const PatientCRM: React.FC = () => {
   const openEditModal = (patient: PatientWithPhotos) => {
     setModalMode('EDIT');
     setFormData({
-      name: patient.name,
-      age: patient.age.toString(),
-      phone1: patient.phones[0] || '',
-      phone2: patient.phones[1] || '',
+      name: patient.name || '',
+      age: patient.age ? patient.age.toString() : '',
+      phone1: (Array.isArray(patient.phones) && patient.phones[0]) || '',
+      phone2: (Array.isArray(patient.phones) && patient.phones[1]) || '',
       address: patient.address || '',
-      medical: (patient.medical_history || []).join(', ')
+      medical: (Array.isArray(patient.medical_history) ? patient.medical_history : []).join(', ')
     });
   };
 
@@ -146,11 +151,11 @@ const PatientCRM: React.FC = () => {
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-indigo-600 shrink-0 border border-slate-200 text-lg">
-                      {p.name.charAt(0)}
+                      {(p.name || '؟').charAt(0)}
                     </div>
                     <div className="min-w-0 text-right">
-                      <p className="font-semibold text-slate-800 truncate">{p.name}</p>
-                      <p className="text-xs text-slate-500 truncate" dir="ltr">{p.phones[0]}</p>
+                      <p className="font-semibold text-slate-800 truncate">{p.name || 'بدون اسم'}</p>
+                      <p className="text-xs text-slate-500 truncate" dir="ltr">{(Array.isArray(p.phones) && p.phones[0]) || 'بدون هاتف'}</p>
                     </div>
                   </div>
                 </button>
@@ -163,7 +168,7 @@ const PatientCRM: React.FC = () => {
 
         <div className={`lg:col-span-2 space-y-6 ${selectedPatient ? 'block' : 'hidden lg:block'}`}>
           {selectedPatient ? (
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 lg:p-8 shadow-sm h-full overflow-y-auto animate-in fade-in slide-in-from-left-4 duration-300">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 lg:p-8 shadow-sm h-full overflow-y-auto">
               <button onClick={closeDetails} className="lg:hidden flex items-center gap-2 text-indigo-600 mb-6 font-bold text-sm">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 العودة للقائمة
@@ -171,10 +176,10 @@ const PatientCRM: React.FC = () => {
 
               <div className="flex flex-col sm:flex-row items-start justify-between gap-6 mb-8 border-b border-slate-100 pb-6">
                 <div className="flex flex-col gap-1 text-right">
-                    <h2 className="text-xl lg:text-3xl font-extrabold text-slate-800">{selectedPatient.name}</h2>
-                    <p className="text-slate-500 font-medium">{selectedPatient.age} سنة</p>
+                    <h2 className="text-xl lg:text-3xl font-extrabold text-slate-800">{selectedPatient.name || 'بدون اسم'}</h2>
+                    <p className="text-slate-500 font-medium">{(selectedPatient.age || 0)} سنة</p>
                     <div className="mt-3 flex flex-wrap gap-2 justify-end">
-                      {selectedPatient.medical_history && selectedPatient.medical_history.length > 0 ? selectedPatient.medical_history.map((m, i) => (
+                      {Array.isArray(selectedPatient.medical_history) && selectedPatient.medical_history.length > 0 ? selectedPatient.medical_history.map((m, i) => (
                         <span key={i} className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-lg border border-red-100">{m}</span>
                       )) : <span className="text-xs text-slate-400 italic">لا يوجد سجل مرضي</span>}
                     </div>
@@ -189,9 +194,9 @@ const PatientCRM: React.FC = () => {
                 <div className="space-y-4">
                   <h3 className="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm">بيانات الاتصال</h3>
                   <div className="space-y-2">
-                    {selectedPatient.phones.map((p, i) => (
+                    {Array.isArray(selectedPatient.phones) && selectedPatient.phones.length > 0 ? selectedPatient.phones.map((p, i) => (
                       <p key={i} className="text-sm"><span dir="ltr" className="text-slate-700 font-semibold">{p}</span></p>
-                    ))}
+                    )) : <p className="text-sm text-slate-400 italic">لا يوجد أرقام هاتف</p>}
                   </div>
                 </div>
                 <div className="space-y-4">
