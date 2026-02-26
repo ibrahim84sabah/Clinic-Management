@@ -62,7 +62,6 @@ const Dashboard: React.FC<DashboardProps> = ({ onNavigate, userRole }) => {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 md:gap-6">
         <div className="space-y-1">
           <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-slate-800 tracking-tight">نظرة عامة على العيادة</h1>
-          <p className="text-slate-500 font-bold text-sm italic">بيانات حية مباشرة من محرك السحابة.</p>
         </div>
         <div className="bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-2xl flex items-center gap-2.5 shadow-sm self-start">
            <span className="relative flex h-2.5 w-2.5">

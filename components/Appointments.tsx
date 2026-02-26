@@ -18,8 +18,10 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'TODAY' | 'FUTURE' | 'ALL'>('TODAY');
+  
+  // نظام الفلترة الإداري
+  const [adminFilterDoctorId, setAdminFilterDoctorId] = useState<string>('ALL');
 
-  // إعدادات الوقت الافتراضية
   const [formData, setFormData] = useState({
     patient_id: '',
     doctor_id: '',
@@ -36,11 +38,16 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
 
   useEffect(() => {
     const initData = async () => {
-      await Promise.all([fetchPatients(), fetchDoctors()]);
-      await fetchAppointments();
+      await fetchDoctors();
+      await fetchPatients();
     };
     initData();
-  }, [dateFilter, viewMode]);
+  }, []);
+
+  // تحديث المواعيد عند تغيير الفلتر أو المستخدم أو التاريخ
+  useEffect(() => {
+    fetchAppointments();
+  }, [dateFilter, viewMode, adminFilterDoctorId, currentUser]);
 
   useEffect(() => {
     if (currentUser?.role === UserRole.DOCTOR && !formData.doctor_id) {
@@ -73,6 +80,16 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
     try {
       let query = supabase.from('appointments').select('*');
 
+      // 1. نظام الخصوصية: الطبيب يرى مواعيده فقط
+      if (currentUser?.role === UserRole.DOCTOR) {
+        query = query.eq('doctor_id', currentUser.id);
+      } 
+      // 2. نظام الإدارة: المدير/الاستقبال يمكنهم الفلترة حسب الطبيب
+      else if (adminFilterDoctorId !== 'ALL') {
+        query = query.eq('doctor_id', adminFilterDoctorId);
+      }
+
+      // فلترة الزمن
       if (viewMode === 'FUTURE') {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
@@ -83,7 +100,7 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
           .lte('appointment_date', `${dateFilter}T23:59:59.999Z`);
       }
 
-      const { data: appData, error: appError } = await query.order('appointment_date', { ascending: false });
+      const { data: appData, error: appError } = await query.order('appointment_date', { ascending: true });
       if (appError) throw appError;
 
       const { data: pData } = await supabase.from('patients').select('id, name');
@@ -127,7 +144,6 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
 
     setIsSubmitting(true);
     try {
-      // تحويل الوقت من نظام 12 ساعة إلى 24 ساعة
       let h = parseInt(formData.hour);
       if (formData.period === 'PM' && h < 12) h += 12;
       if (formData.period === 'AM' && h === 12) h = 0;
@@ -189,8 +205,9 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
     <div className="space-y-6 text-right animate-in fade-in duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">جدول المواعيد</h1>
-          <p className="text-slate-500 text-xs font-bold">إدارة المواعيد السحابية</p>
+          <h1 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">
+            {currentUser?.role === UserRole.DOCTOR ? `جدولي الخاص: د. ${currentUser.name}` : 'إدارة مواعيد العيادة'}
+          </h1>
         </div>
         <button 
           onClick={() => { resetForm(); setIsModalOpen(true); }}
@@ -200,11 +217,33 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
         </button>
       </div>
 
+      {/* شريط الفلترة المتطور */}
       <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/20 space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-           <button onClick={() => setViewMode('TODAY')} className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all border ${viewMode === 'TODAY' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400'}`}>اليوم</button>
-           <button onClick={() => setViewMode('FUTURE')} className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all border ${viewMode === 'FUTURE' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400'}`}>القادمة</button>
-           <button onClick={() => setViewMode('ALL')} className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all border ${viewMode === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-slate-50 text-slate-400'}`}>السجل الكامل</button>
+           <div className="flex bg-slate-50 p-1 rounded-2xl">
+             <button onClick={() => setViewMode('TODAY')} className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all ${viewMode === 'TODAY' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>اليوم</button>
+             <button onClick={() => setViewMode('FUTURE')} className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all ${viewMode === 'FUTURE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>القادمة</button>
+             <button onClick={() => setViewMode('ALL')} className={`px-5 py-2 rounded-xl text-[10px] font-black transition-all ${viewMode === 'ALL' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}>الكل</button>
+           </div>
+
+           {/* قائمة منسدلة للأطباء تظهر فقط للإدارة */}
+           {currentUser?.role !== UserRole.DOCTOR && (
+             <div className="relative min-w-[180px]">
+               <select 
+                 value={adminFilterDoctorId}
+                 onChange={(e) => setAdminFilterDoctorId(e.target.value)}
+                 className="w-full bg-indigo-50 border border-indigo-100 text-indigo-700 px-4 py-2.5 rounded-2xl text-[10px] font-black outline-none appearance-none cursor-pointer"
+               >
+                 <option value="ALL">جميع الأطباء (منظور عام)</option>
+                 {doctors.map(doc => (
+                   <option key={doc.id} value={doc.id}>د. {doc.name}</option>
+                 ))}
+               </select>
+               <div className="absolute left-3 top-3 pointer-events-none">
+                  <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
+               </div>
+             </div>
+           )}
            
            <div className="flex-1 min-w-[200px] relative">
             <input 
@@ -212,8 +251,9 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
               placeholder="بحث في المواعيد..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-10 py-2.5 text-xs font-black outline-none"
+              className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-10 py-2.5 text-xs font-black outline-none focus:bg-white transition-all"
             />
+            <svg className="w-4 h-4 absolute right-4 top-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           </div>
         </div>
       </div>
@@ -222,46 +262,53 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
         {isLoading ? (
           <div className="p-20 text-center flex flex-col items-center gap-4">
             <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-slate-400 font-black text-sm">جاري تحديث المواعيد...</p>
+            <p className="text-slate-400 font-black text-sm">جاري تخصيص الجدول...</p>
           </div>
         ) : filteredAppointments.length > 0 ? (
           filteredAppointments.map((app) => (
-            <div key={app.id} className="bg-white p-5 rounded-[2rem] border border-slate-50 shadow-sm hover:shadow-md transition-all flex items-center justify-between group">
+            <div key={app.id} className="bg-white p-5 rounded-[2rem] border border-slate-50 shadow-sm hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
               <div className="flex items-center gap-5">
-                <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex flex-col items-center justify-center border border-indigo-100 group-hover:bg-indigo-600 transition-colors text-center p-1">
-                  <span className="text-indigo-600 font-black text-[9px] group-hover:text-white leading-tight">
+                <div className="w-14 h-14 bg-slate-50 rounded-2xl flex flex-col items-center justify-center border border-slate-100 group-hover:bg-indigo-600 transition-colors text-center p-1">
+                  <span className="text-slate-700 font-black text-[10px] group-hover:text-white leading-tight">
                     {new Date(app.appointment_date).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </span>
-                  <span className="text-indigo-300 font-bold text-[8px] group-hover:text-indigo-100">
+                  <span className="text-slate-300 font-bold text-[8px] group-hover:text-indigo-100">
                     {new Date(app.appointment_date).toLocaleDateString('ar-EG', { day: '2-digit', month: '2-digit' })}
                   </span>
                 </div>
                 <div>
                   <h3 className="font-black text-slate-800 text-base">{app.patient_name}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">الطبيب: {app.doctor_name}</span>
-                    <span className="text-[10px] text-slate-400 font-medium italic">{app.notes}</span>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    {currentUser?.role !== UserRole.DOCTOR && (
+                      <span className="text-[9px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-md font-black">الطبيب: {app.doctor_name}</span>
+                    )}
+                    <span className="text-[9px] text-slate-400 font-medium italic">{app.notes || 'بدون ملاحظات'}</span>
                   </div>
                 </div>
               </div>
-              <select 
-                value={app.status}
-                onChange={(e) => updateStatus(app.id, e.target.value as AppointmentStatus)}
-                className={`text-[10px] font-black px-4 py-2 rounded-xl border-none outline-none cursor-pointer ${
-                  app.status === AppointmentStatus.PENDING ? 'bg-amber-50 text-amber-600' :
-                  app.status === AppointmentStatus.CONFIRMED ? 'bg-indigo-50 text-indigo-600' :
-                  app.status === AppointmentStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                }`}
-              >
-                <option value={AppointmentStatus.PENDING}>انتظار</option>
-                <option value={AppointmentStatus.CONFIRMED}>مؤكد</option>
-                <option value={AppointmentStatus.COMPLETED}>مكتمل</option>
-                <option value={AppointmentStatus.CANCELLED}>ملغى</option>
-              </select>
+              
+              <div className="flex items-center gap-3 self-end sm:self-center w-full sm:w-auto justify-between sm:justify-end">
+                <select 
+                  value={app.status}
+                  onChange={(e) => updateStatus(app.id, e.target.value as AppointmentStatus)}
+                  className={`text-[10px] font-black px-4 py-2 rounded-xl border-none outline-none cursor-pointer transition-all ${
+                    app.status === AppointmentStatus.PENDING ? 'bg-amber-50 text-amber-600' :
+                    app.status === AppointmentStatus.CONFIRMED ? 'bg-blue-50 text-blue-600' :
+                    app.status === AppointmentStatus.COMPLETED ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                  }`}
+                >
+                  <option value={AppointmentStatus.PENDING}>انتظار</option>
+                  <option value={AppointmentStatus.CONFIRMED}>مؤكد</option>
+                  <option value={AppointmentStatus.COMPLETED}>مكتمل</option>
+                  <option value={AppointmentStatus.CANCELLED}>ملغى</option>
+                </select>
+              </div>
             </div>
           ))
         ) : (
-          <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100 text-slate-300 italic font-bold">لا توجد مواعيد حالية.</div>
+          <div className="p-20 text-center bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100 text-slate-300 italic font-bold">
+            {adminFilterDoctorId === 'ALL' ? 'لا توجد مواعيد حالية.' : 'لا توجد مواعيد لهذا الطبيب حالياً.'}
+          </div>
         )}
       </div>
 
@@ -300,37 +347,35 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
                 )}
               </div>
 
-              {/* الطبيب */}
+              {/* الطبيب - يتم تفعيله فقط للإدارة */}
               <div>
                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest mr-1">الطبيب المسؤول</label>
                 <select 
                   required
+                  disabled={currentUser?.role === UserRole.DOCTOR}
                   value={formData.doctor_id}
                   onChange={(e) => setFormData({...formData, doctor_id: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   <option value="">-- اختر الطبيب --</option>
                   {doctors.map(doc => (
-                    <option key={doc.id} value={doc.id}>{doc.name}</option>
+                    <option key={doc.id} value={doc.id}>د. {doc.name}</option>
                   ))}
                 </select>
+                {currentUser?.role === UserRole.DOCTOR && <p className="text-[8px] font-bold text-indigo-400 mt-1 mr-1">أنت الطبيب المسؤول عن هذا الحجز تلقائياً.</p>}
               </div>
 
-              {/* التاريخ مع أيقونة تقويم */}
               <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase mr-1 tracking-widest">تاريخ الموعد (التقويم)</label>
-                <div className="relative group">
-                  <input 
-                    type="date" 
-                    required 
-                    value={formData.appointment_date} 
-                    onChange={(e) => setFormData({...formData, appointment_date: e.target.value})} 
-                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                  />
-                </div>
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase mr-1 tracking-widest">تاريخ الموعد</label>
+                <input 
+                  type="date" 
+                  required 
+                  value={formData.appointment_date} 
+                  onChange={(e) => setFormData({...formData, appointment_date: e.target.value})} 
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-black outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
 
-              {/* الوقت الجديد المقسم */}
               <div>
                 <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase mr-1 tracking-widest">توقيت الجلسة</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -363,14 +408,13 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
                 </div>
               </div>
 
-              {/* ملاحظات */}
               <div>
-                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase mr-1 tracking-widest">ملاحظات إضافية</label>
+                <label className="block text-[10px] font-black text-slate-400 mb-2 uppercase mr-1 tracking-widest">ملاحظات</label>
                 <textarea 
-                  placeholder="سبب الزيارة أو ملاحظة خاصة..."
+                  placeholder="ملاحظات العيادة..."
                   value={formData.notes}
                   onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold h-24 resize-none outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-bold h-20 resize-none outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -380,9 +424,9 @@ const Appointments: React.FC<AppointmentsProps> = ({ currentUser }) => {
                   disabled={isSubmitting || !formData.patient_id || !formData.doctor_id}
                   className="w-full bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black text-sm shadow-xl hover:bg-indigo-700 transition-all active:scale-[0.98] disabled:opacity-50"
                 >
-                  {isSubmitting ? 'جاري المزامنة...' : 'تأكيد وحجز الموعد'}
+                  {isSubmitting ? 'جاري الحفظ...' : 'تأكيد الموعد'}
                 </button>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="w-full text-slate-400 font-black py-2 text-xs">إلغاء العملية</button>
+                <button type="button" onClick={() => { setIsModalOpen(false); }} className="w-full text-slate-400 font-black py-2 text-xs">إلغاء</button>
               </div>
             </form>
           </div>

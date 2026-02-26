@@ -36,10 +36,11 @@ const AccountManagement: React.FC = () => {
     e.preventDefault();
     setError('');
     
+    // تنظيف المعرف من الفراغات وتحويله للأحرف الصغيرة
     const cleanUsername = newUser.username.trim().toLowerCase().replace(/\s/g, '');
 
     if (!cleanUsername) {
-      setError('يرجى إدخال معرف الموظف');
+      setError('يرجى إدخال معرف الموظف (ID)');
       return;
     }
 
@@ -50,30 +51,27 @@ const AccountManagement: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // حفظ الموظف في جدول البروفايلات
-      const { data, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from('profiles')
         .insert([{
           username: cleanUsername,
           name: newUser.name.trim(),
           role: newUser.role,
           password_plain: newUser.password
-        }])
-        .select();
+        }]);
 
       if (profileError) {
-        if (profileError.message.includes('unique_violation')) {
-          throw new Error('هذا المعرف (ID) مستخدم بالفعل لموظف آخر.');
+        // التحقق من كود الخطأ 23505 (Unique Violation) في Postgres
+        if (profileError.code === '23505' || profileError.message.includes('unique_violation')) {
+          throw new Error(`المعرف (@${cleanUsername}) محجوز مسبقاً لموظف آخر. يرجى اختيار معرف مختلف.`);
         }
         throw profileError;
       }
 
-      // تحديث الواجهة فوراً بجلب البيانات من السحابة
       await fetchUsers();
-      
       setShowAddModal(false);
       setNewUser({ name: '', username: '', role: UserRole.DOCTOR, password: '' });
-      alert(`تم تسجيل الموظف ${newUser.name} بنجاح في قاعدة البيانات.`);
+      alert(`تم تسجيل ${newUser.name} بنجاح.`);
     } catch (err: any) {
       setError(err.message || 'فشل في حفظ البيانات السحابية');
     } finally {
@@ -103,13 +101,12 @@ const AccountManagement: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">إدارة الكادر الوظيفي</h1>
-          <p className="text-slate-500 font-medium italic text-sm">إدارة المعرفات وكلمات المرور المربوطة بسحابة العيادة.</p>
         </div>
         <button 
           onClick={() => { setError(''); setShowAddModal(true); }}
           className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 flex items-center gap-2 justify-center transition-all active:scale-95"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
           تسجيل موظف جديد
         </button>
       </div>
@@ -169,7 +166,7 @@ const AccountManagement: React.FC = () => {
                         onClick={() => deleteUser(user.id, user.username)}
                         className="text-slate-300 hover:text-rose-500 p-2 rounded-xl hover:bg-rose-50 transition-all md:opacity-0 group-hover:opacity-100"
                       >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </td>
                   </tr>
@@ -189,7 +186,7 @@ const AccountManagement: React.FC = () => {
             {error && (
               <div className="mb-6 p-4 bg-rose-50 text-rose-600 rounded-2xl text-[11px] font-black border border-rose-100 flex items-center gap-2 animate-shake">
                 <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                {error}
+                <span className="leading-tight">{error}</span>
               </div>
             )}
             
@@ -220,6 +217,7 @@ const AccountManagement: React.FC = () => {
                   />
                   <span className="absolute left-4 top-4 text-slate-300 font-black text-sm">@</span>
                 </div>
+                <p className="text-[9px] text-slate-400 mt-2 mr-1">يجب أن يكون المعرف فريداً ولا يحتوي على مسافات (مثلاً: ahmed_2024).</p>
               </div>
 
               <div>
@@ -254,7 +252,7 @@ const AccountManagement: React.FC = () => {
                   disabled={isSubmitting}
                   className="w-full bg-indigo-600 text-white py-4 lg:py-5 rounded-[1.5rem] font-black text-sm hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50"
                 >
-                  {isSubmitting ? 'جاري المزامنة السحابية...' : 'حفظ الموظف في السحابة'}
+                  {isSubmitting ? 'جاري التحقق من التكرار...' : 'حفظ الموظف في السحابة'}
                 </button>
                 <button 
                   type="button"
